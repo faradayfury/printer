@@ -76,7 +76,10 @@ EOF
 chmod 644 "$PLIST_PATH"
 
 # Load the daemon
-launchctl load "$PLIST_PATH" 2>/dev/null || true
+if ! launchctl load "$PLIST_PATH" 2>&1; then
+    echo "WARNING: Failed to load LaunchDaemon. You may need to reboot or load it manually:"
+    echo "  sudo launchctl load $PLIST_PATH"
+fi
 
 echo "Firmware auto-upload daemon installed."
 echo "  Script: $SCRIPT_PATH"

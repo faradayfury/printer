@@ -11,7 +11,10 @@
 #
 set -e
 
-GS_SRC="/opt/homebrew/Cellar/ghostscript/10.06.0_1/bin/gs"
+# Auto-detect Ghostscript from Homebrew (survives brew upgrades)
+GS_PREFIX="$(brew --prefix ghostscript 2>/dev/null)" || true
+GS_SRC="${GS_PREFIX}/bin/gs"
+
 # Put everything in the CUPS filter dir — the sandbox allows this path
 BUNDLE_DIR="/usr/libexec/cups/filter"
 LIB_DIR="$BUNDLE_DIR"
@@ -21,10 +24,15 @@ if [ "$(id -u)" -ne 0 ]; then
     exit 1
 fi
 
-if [ ! -x "$GS_SRC" ]; then
-    echo "ERROR: Ghostscript not found at $GS_SRC"
+if [ -z "$GS_PREFIX" ] || [ ! -x "$GS_SRC" ]; then
+    echo "ERROR: Ghostscript not found. Install it with: brew install ghostscript"
     exit 1
 fi
+
+# Resolve real Cellar path and version for resource files
+GS_CELLAR="$(realpath "$GS_PREFIX")"
+GS_VERSION="$("$GS_SRC" --version)"
+echo "  Detected Ghostscript $GS_VERSION at $GS_CELLAR"
 
 echo "=== Bundling Ghostscript for CUPS sandbox ==="
 
@@ -117,7 +125,9 @@ for lib in "$LIB_DIR"/*.dylib; do
     # Fix the library's own install name
     old_id=$(otool -D "$lib" 2>/dev/null | tail -1)
     if echo "$old_id" | grep -q '^/opt/homebrew/'; then
-        install_name_tool -id "@loader_path/$libname" "$lib" 2>/dev/null || true
+        if ! install_name_tool -id "@loader_path/$libname" "$lib" 2>/dev/null; then
+            echo "  WARNING: Failed to rewrite install name for $libname" >&2
+        fi
     fi
 
     # Fix references to other Homebrew libraries and @rpath references
@@ -125,13 +135,15 @@ for lib in "$LIB_DIR"/*.dylib; do
         dep_name=$(basename "$dep")
         if [ -f "$LIB_DIR/$dep_name" ]; then
             echo "  $libname: $dep -> @loader_path/$dep_name"
-            install_name_tool -change "$dep" "@loader_path/$dep_name" "$lib" 2>/dev/null || true
+            if ! install_name_tool -change "$dep" "@loader_path/$dep_name" "$lib" 2>/dev/null; then
+                echo "  WARNING: Failed to rewrite $dep in $libname" >&2
+            fi
         fi
     done
 done
 
 # --- Copy Ghostscript resource files ---
-GS_SHARE="/opt/homebrew/Cellar/ghostscript/10.06.0_1/share/ghostscript"
+GS_SHARE="$GS_CELLAR/share/ghostscript"
 GS_RES_DST="$BUNDLE_DIR/gs-res"
 
 echo ""
@@ -139,18 +151,22 @@ echo "Copying Ghostscript resources..."
 rm -rf "$GS_RES_DST"
 mkdir -p "$GS_RES_DST"
 cp -R "$GS_SHARE/Resource" "$GS_RES_DST/"
-cp -R "$GS_SHARE/10.06.0/lib" "$GS_RES_DST/"
+cp -R "$GS_SHARE/$GS_VERSION/lib" "$GS_RES_DST/"
 # Copy fonts if present
-[ -d "$GS_SHARE/10.06.0/fonts" ] && cp -R "$GS_SHARE/10.06.0/fonts" "$GS_RES_DST/"
-[ -d "$GS_SHARE/10.06.0/iccprofiles" ] && cp -R "$GS_SHARE/10.06.0/iccprofiles" "$GS_RES_DST/"
+[ -d "$GS_SHARE/$GS_VERSION/fonts" ] && cp -R "$GS_SHARE/$GS_VERSION/fonts" "$GS_RES_DST/"
+[ -d "$GS_SHARE/$GS_VERSION/iccprofiles" ] && cp -R "$GS_SHARE/$GS_VERSION/iccprofiles" "$GS_RES_DST/"
 echo "  Installed to $GS_RES_DST/ ($(du -sh "$GS_RES_DST" | awk '{print $1}'))"
 
 echo ""
 echo "Codesigning..."
 # Ad-hoc codesign everything (required on Apple Silicon)
-codesign --force --sign - "$BUNDLE_DIR/gs-bundled" 2>/dev/null
+if ! codesign --force --sign - "$BUNDLE_DIR/gs-bundled" 2>/dev/null; then
+    echo "  WARNING: Failed to codesign gs-bundled" >&2
+fi
 for lib in "$LIB_DIR"/*.dylib; do
-    codesign --force --sign - "$lib" 2>/dev/null
+    if ! codesign --force --sign - "$lib" 2>/dev/null; then
+        echo "  WARNING: Failed to codesign $(basename "$lib")" >&2
+    fi
 done
 
 echo ""
