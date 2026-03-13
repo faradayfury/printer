@@ -115,7 +115,8 @@ Note: Some libraries use `@rpath` references instead of absolute paths (e.g., `l
 | `foo2xqx-filter` | Alternative simpler CUPS filter |
 | `foo2xqx-wrapper` | Wrapper for foomatic-rip→foo2xqx pipeline |
 | `HP-LaserJet_P1007.ppd` | PPD file describing printer capabilities |
-| `install-hotplug.sh` | Sets up automatic firmware upload on USB connect |
+| `install-hotplug.sh` | Sets up automatic firmware upload via IOKit USB device matching |
+| `build-pkg.sh` | Builds a distributable .pkg installer |
 | `install-fix.sh` | Quick reinstall of binaries and PPD |
 | `foo2zjs/` | Source code for foo2xqx and related tools |
 | `testpage.pdf` | Test page for verifying the driver works |
@@ -141,8 +142,8 @@ sudo bash ./bundle-gs.sh
 sudo cp foomatic-rip /usr/libexec/cups/filter/foomatic-rip
 sudo chmod 755 /usr/libexec/cups/filter/foomatic-rip
 
-# 4. Plug in the printer and upload firmware (required after every power cycle)
-lp -oraw /usr/local/share/foo2xqx/firmware/sihpP1005.dl
+# 4. Set up automatic firmware upload (triggers on USB connect via IOKit matching)
+sudo ./install-hotplug.sh
 
 # 5. Add printer via System Settings > Printers & Scanners
 #    Select "HP LaserJet P1007 foo2xqx" as the driver
