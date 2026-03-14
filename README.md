@@ -1,6 +1,8 @@
-# HP LaserJet P1007 — ARM64 macOS Driver
+> **This repo is archived.** It's been replaced by a cleaner approach that doesn't need Ghostscript at all. See [hp-laserjet-macos-driver](https://github.com/faradayfury/hp-laserjet-macos-driver).
 
-A native Apple Silicon driver for the HP LaserJet P1007 (and P1005/P1006/P1008) using the open-source `foo2xqx` engine.
+# HP LaserJet P1007 — ARM64 macOS Driver (Ghostscript approach)
+
+A native Apple Silicon driver for the HP LaserJet P1007 (and P1005/P1006/P1008) using the open-source `foo2xqx` engine. This approach bundled Ghostscript with rewritten dylib paths to work around CUPS sandboxing. It worked but was fragile — the ~35MB bundle broke on every `brew upgrade ghostscript`. The [new driver](https://github.com/faradayfury/hp-laserjet-macos-driver) uses macOS's built-in `cgpdftoraster` instead, producing an 85KB binary with no external dependencies.
 
 ## The Problem
 
